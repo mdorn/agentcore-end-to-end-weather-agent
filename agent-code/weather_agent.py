@@ -4,6 +4,7 @@ from typing import Dict, Any
 import json
 import os
 import asyncio
+from datetime import datetime, timedelta, timezone
 from contextlib import suppress
 
 from bedrock_agentcore.tools.browser_client import BrowserClient
@@ -267,7 +268,18 @@ def get_activity_preferences() -> Dict[str, Any]:
 
 def create_weather_agent() -> Agent:
     """Create the weather agent with all tools"""
+    # Built per invocation so the date context and results key are current.
+    now = datetime.now(timezone.utc)
+    calendar = "\n".join(
+        f"    - {d:%Y-%m-%d} is a {d:%A}" for d in (now + timedelta(days=i) for i in range(10))
+    )
+    results_key = f"results/<city-slug>-{now:%Y%m%d-%H%M%S}.md"
+
     system_prompt = f"""You are a Weather-Based Activity Planning Assistant.
+
+    Today is {now:%A, %Y-%m-%d} (UTC). Use this calendar for weekday names; never work
+    out weekdays yourself:
+{calendar}
 
     When a user asks about activities for a location, follow below stepes Sequentially:
     1. Extract city from user query
@@ -276,12 +288,14 @@ def create_weather_agent() -> Agent:
     4. Call execute_code(python_code) to get Day Type ( GOOD, OK , POOR ) for forecasting dates. 
     5. Call get_activity_preferences() to get user preferences
     6. Generate Activity Recommendations based on weather and preferences that you have recieved from previous steps
-    7. Generate the comprehensive Markdown file (results.md) and store it in S3 Bucket :  {RESULTS_BUCKET} through use_aws tool. 
+    7. Generate the comprehensive Markdown report and store it in S3 bucket {RESULTS_BUCKET} through
+       the use_aws tool, under the key {results_key}. Replace <city-slug> with the city in lowercase
+       with hyphens (e.g. "san-francisco"); keep the rest of the key exactly as given.
     
     IMPORTANT: Provide complete recommendations and end your response. Do NOT ask follow-up questions or wait for additional input.
 
     If get_weather_data returns an error, retry it once. If it fails again, stop: do not invent,
-    estimate, or use sample weather data, and do not run the remaining steps or write results.md.
+    estimate, or use sample weather data, and do not run the remaining steps or write a report.
     Instead, report that the forecast could not be retrieved and include the error message."""
 
     return Agent(
@@ -336,7 +350,7 @@ async def invoke(payload=None):
         msg = (
             "Processing started ... "
             f"You can monitor status in CloudWatch logs at /aws/bedrock-agentcore/runtimes/<agent-runtime-id> ....."
-            f"You can see the result at {RESULTS_BUCKET} ...."
+            f"You can see the result at s3://{RESULTS_BUCKET}/results/ ...."
         )
 
         return {"status": "Started", "message": msg}
