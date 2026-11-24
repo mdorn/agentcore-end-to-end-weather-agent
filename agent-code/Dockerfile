@@ -3,8 +3,7 @@ FROM public.ecr.aws/docker/library/python:3.11-slim
 WORKDIR /app
 
 COPY requirements.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir aws-opentelemetry-distro==0.10.1
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user
 RUN useradd -m -u 1000 bedrock_agentcore

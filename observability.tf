@@ -1,5 +1,5 @@
 # ============================================================================
-# Observability Module - CloudWatch Logs and X-Ray Traces Delivery
+# Observability Module - CloudWatch Logs Delivery
 # ============================================================================
 
 # ============================================================================
@@ -64,48 +64,6 @@ resource "aws_cloudwatch_log_delivery" "logs" {
 }
 
 # ============================================================================
-# X-Ray Traces Setup
-# ============================================================================
-
-# Delivery Source for Traces
-resource "aws_cloudwatch_log_delivery_source" "traces" {
-  name         = "${aws_bedrockagentcore_agent_runtime.weather_agent.agent_runtime_id}-traces-source"
-  log_type     = "TRACES"
-  resource_arn = aws_bedrockagentcore_agent_runtime.weather_agent.agent_runtime_arn
-
-  depends_on = [aws_bedrockagentcore_agent_runtime.weather_agent]
-}
-
-# Delivery Destination for Traces (X-Ray)
-resource "aws_cloudwatch_log_delivery_destination" "traces" {
-  name                      = "${aws_bedrockagentcore_agent_runtime.weather_agent.agent_runtime_id}-traces-destination"
-  delivery_destination_type = "XRAY"
-
-  tags = {
-    Name    = "${var.stack_name}-traces-destination"
-    Purpose = "X-Ray traces delivery destination"
-    Module  = "Observability"
-  }
-}
-
-# Delivery Connection for Traces
-resource "aws_cloudwatch_log_delivery" "traces" {
-  delivery_source_name     = aws_cloudwatch_log_delivery_source.traces.name
-  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.traces.arn
-
-  tags = {
-    Name    = "${var.stack_name}-traces-delivery"
-    Purpose = "Connect traces source to X-Ray destination"
-    Module  = "Observability"
-  }
-
-  depends_on = [
-    aws_cloudwatch_log_delivery_source.traces,
-    aws_cloudwatch_log_delivery_destination.traces
-  ]
-}
-
-# ============================================================================
 # Outputs
 # ============================================================================
 
@@ -122,9 +80,4 @@ output "log_group_arn" {
 output "logs_delivery_id" {
   description = "ID of the logs delivery connection"
   value       = aws_cloudwatch_log_delivery.logs.id
-}
-
-output "traces_delivery_id" {
-  description = "ID of the traces delivery connection"
-  value       = aws_cloudwatch_log_delivery.traces.id
 }

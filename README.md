@@ -241,7 +241,7 @@ Memory is automatically initialized with activity preferences (good/ok/poor weat
 
 ### Observability
 
-Full observability is automatically configured with CloudWatch Logs (14-day retention) and X-Ray traces. Logs are delivered via vended logs delivery to `/aws/vendedlogs/bedrock-agentcore/${runtime_id}`. Access via CloudWatch Console or `aws logs tail` command.
+Full observability is automatically configured with CloudWatch Logs (14-day retention). X-Ray trace delivery is not configured (it requires CloudWatch Transaction Search to be enabled account-wide). Logs are delivered via vended logs delivery to `/aws/vendedlogs/bedrock-agentcore/${runtime_id}`. Access via CloudWatch Console or `aws logs tail` command.
 
 ## Authentication Model
 
@@ -415,7 +415,7 @@ end-to-end-weather-agent/
 ├── code_interpreter.tf       # Code interpreter tool
 ├── memory.tf                 # Memory resource
 ├── memory-init.tf            # Memory initialization automation
-├── observability.tf          # CloudWatch Logs and X-Ray traces
+├── observability.tf          # CloudWatch Logs delivery
 ├── iam.tf                    # IAM roles and policies
 ├── s3.tf                     # S3 buckets
 ├── ecr.tf                    # ECR repository
@@ -451,10 +451,6 @@ aws logs tail $LOG_GROUP --follow
 aws logs tail /aws/codebuild/agentcore-weather-agent-build --follow
 ```
 
-### X-Ray Traces (Automatic)
-
-Distributed tracing automatically delivered to X-Ray. View traces in [X-Ray Console](https://console.aws.amazon.com/xray/home).
-
 ### Metrics
 
 Access metrics in CloudWatch:
@@ -468,7 +464,6 @@ Access metrics in CloudWatch:
 
 Monitor in AWS Console:
 - **CloudWatch Logs**: Vended logs at `/aws/vendedlogs/bedrock-agentcore/${runtime_id}`
-- **X-Ray**: Distributed request traces
 - **Bedrock AgentCore**: [Console Link](https://console.aws.amazon.com/bedrock/home#/agentcore)
 - **ECR Repository**: Docker images
 - **CodeBuild**: Build status
