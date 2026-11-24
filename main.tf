@@ -45,6 +45,20 @@ resource "null_resource" "trigger_build" {
 }
 
 # ============================================================================
+# Resolve the built image's digest
+# ============================================================================
+# Referencing the image by digest (not the mutable tag) changes container_uri
+# on every rebuild, so Terraform updates the runtime to a new version. The
+# depends_on defers this lookup until after the build has pushed the image.
+
+data "aws_ecr_image" "agent" {
+  repository_name = aws_ecr_repository.weather_ecr.name
+  image_tag       = var.image_tag
+
+  depends_on = [null_resource.trigger_build]
+}
+
+# ============================================================================
 # Weather Agent Runtime
 # ============================================================================
 
@@ -55,7 +69,7 @@ resource "aws_bedrockagentcore_agent_runtime" "weather_agent" {
 
   agent_runtime_artifact {
     container_configuration {
-      container_uri = "${aws_ecr_repository.weather_ecr.repository_url}:${var.image_tag}"
+      container_uri = "${aws_ecr_repository.weather_ecr.repository_url}@${data.aws_ecr_image.agent.image_digest}"
     }
   }
 

@@ -29,6 +29,9 @@ MEMORY_ID = os.getenv("MEMORY_ID")
 RESULTS_BUCKET = os.getenv("RESULTS_BUCKET")
 AWS_REGION = os.getenv("AWS_REGION")
 
+# Bedrock model used by browser-use to drive the browser (optional override)
+BROWSER_MODEL_ID = os.getenv("BROWSER_MODEL_ID", "us.anthropic.claude-opus-4-8")
+
 # Validate required environment variables
 required_vars = {
     "BROWSER_ID": BROWSER_ID,
@@ -51,12 +54,15 @@ async def run_browser_task(browser_session, bedrock_chat, task: str) -> str:
         agent = BrowserAgent(task=task, llm=bedrock_chat, browser=browser_session)
 
         result = await agent.run()
-        console.print("[green]✅ Browser task completed successfully![/green]")
 
-        if "done" in result.last_action() and "text" in result.last_action()["done"]:
-            return result.last_action()["done"]["text"]
-        else:
-            raise ValueError("NO Data")
+        final = result.final_result()
+        if not result.is_done() or not final:
+            errors = [e for e in result.errors() if e]
+            detail = errors[-1] if errors else "browser agent finished without a result"
+            raise RuntimeError(f"Browser task did not complete: {detail}")
+
+        console.print("[green]✅ Browser task completed successfully![/green]")
+        return final
 
     except Exception as e:
         console.print(f"[red]❌ Browser task error: {e}[/red]")
@@ -83,7 +89,7 @@ async def initialize_browser_session():
         await browser_session.start()
 
         bedrock_chat = ChatBedrockConverse(
-            model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+            model_id=BROWSER_MODEL_ID,
             region_name=AWS_REGION,
         )
 
@@ -167,7 +173,15 @@ async def get_weather_data(city: str) -> Dict[str, Any]:
         console.print(f"[red]❌ Error getting weather data: {e}[/red]")
         return {
             "status": "error",
-            "content": [{"text": f"Error getting weather data: {str(e)}"}],
+            "content": [
+                {
+                    "text": (
+                        f"Error getting weather data: {str(e)}. "
+                        "NO weather data was retrieved. Do not invent, estimate, or "
+                        "substitute weather data."
+                    )
+                }
+            ],
         }
 
     finally:
@@ -264,7 +278,11 @@ def create_weather_agent() -> Agent:
     6. Generate Activity Recommendations based on weather and preferences that you have recieved from previous steps
     7. Generate the comprehensive Markdown file (results.md) and store it in S3 Bucket :  {RESULTS_BUCKET} through use_aws tool. 
     
-    IMPORTANT: Provide complete recommendations and end your response. Do NOT ask follow-up questions or wait for additional input."""
+    IMPORTANT: Provide complete recommendations and end your response. Do NOT ask follow-up questions or wait for additional input.
+
+    If get_weather_data returns an error, retry it once. If it fails again, stop: do not invent,
+    estimate, or use sample weather data, and do not run the remaining steps or write results.md.
+    Instead, report that the forecast could not be retrieved and include the error message."""
 
     return Agent(
         tools=[
@@ -293,7 +311,9 @@ async def async_main(query=None):
 
     try:
         os.environ["BYPASS_TOOL_CONSENT"] = "True"
-        result = agent(query)
+        # Must be awaited: a blocking agent() call here stalls the server's
+        # event loop, so the "Started" response from invoke() may never be sent.
+        result = await agent.invoke_async(query)
 
         return {"status": "completed", "result": result.message["content"][0]["text"]}
 
